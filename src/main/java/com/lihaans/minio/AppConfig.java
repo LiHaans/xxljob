@@ -1,0 +1,130 @@
+package com.lihaans.minio;
+
+import io.minio.MinioClient;
+
+import java.util.Properties;
+
+public class AppConfig {
+    private final String inputDir;
+    private final String inputSuffix;
+    private final String arrayFieldPath;
+    private final String objectNameField;
+    private final boolean skipExistingTarget;
+    private final String targetKeyPrefix;
+
+    private final StorageConfig source;
+    private final StorageConfig target;
+
+    public AppConfig(String inputDir,
+                     String inputSuffix,
+                     String arrayFieldPath,
+                     String objectNameField,
+                     boolean skipExistingTarget,
+                     String targetKeyPrefix,
+                     StorageConfig source,
+                     StorageConfig target) {
+        this.inputDir = inputDir;
+        this.inputSuffix = inputSuffix;
+        this.arrayFieldPath = arrayFieldPath;
+        this.objectNameField = objectNameField;
+        this.skipExistingTarget = skipExistingTarget;
+        this.targetKeyPrefix = targetKeyPrefix;
+        this.source = source;
+        this.target = target;
+    }
+
+    public static AppConfig from(Properties p) {
+        String inputDir = required(p, "input.dir");
+        String inputSuffix = p.getProperty("input.suffix", ".jsonl.gz");
+        String arrayFieldPath = required(p, "json.arrayFieldPath");
+        String objectNameField = p.getProperty("json.objectNameField", "objectName");
+        boolean skipExistingTarget = Boolean.parseBoolean(p.getProperty("action.skipExistingTarget", "false"));
+        String targetKeyPrefix = p.getProperty("action.targetKeyPrefix", "");
+
+        StorageConfig source = StorageConfig.from(p, "source");
+        StorageConfig target = StorageConfig.from(p, "target");
+
+        return new AppConfig(inputDir, inputSuffix, arrayFieldPath, objectNameField,
+                skipExistingTarget, targetKeyPrefix, source, target);
+    }
+
+    private static String required(Properties p, String key) {
+        String v = p.getProperty(key);
+        if (v == null || v.trim().isEmpty()) {
+            throw new IllegalArgumentException("Missing required config: " + key);
+        }
+        return v.trim();
+    }
+
+    public String getInputDir() {
+        return inputDir;
+    }
+
+    public String getInputSuffix() {
+        return inputSuffix;
+    }
+
+    public String getArrayFieldPath() {
+        return arrayFieldPath;
+    }
+
+    public String getObjectNameField() {
+        return objectNameField;
+    }
+
+    public boolean isSkipExistingTarget() {
+        return skipExistingTarget;
+    }
+
+    public String getTargetKeyPrefix() {
+        return targetKeyPrefix;
+    }
+
+    public StorageConfig getSource() {
+        return source;
+    }
+
+    public StorageConfig getTarget() {
+        return target;
+    }
+
+    public static class StorageConfig {
+        private final String endpoint;
+        private final String accessKey;
+        private final String secretKey;
+        private final String bucket;
+        private final String region;
+
+        public StorageConfig(String endpoint, String accessKey, String secretKey, String bucket, String region) {
+            this.endpoint = endpoint;
+            this.accessKey = accessKey;
+            this.secretKey = secretKey;
+            this.bucket = bucket;
+            this.region = region;
+        }
+
+        static StorageConfig from(Properties p, String prefix) {
+            return new StorageConfig(
+                    required(p, prefix + ".endpoint"),
+                    required(p, prefix + ".accessKey"),
+                    required(p, prefix + ".secretKey"),
+                    required(p, prefix + ".bucket"),
+                    p.getProperty(prefix + ".region", "").trim()
+            );
+        }
+
+        public MinioClient buildClient() {
+            MinioClient.Builder builder = MinioClient.builder()
+                    .endpoint(endpoint)
+                    .credentials(accessKey, secretKey);
+            if (region != null && !region.isEmpty()) {
+                builder.region(region);
+            }
+            return builder.build();
+        }
+
+        public String getBucket() {
+            return bucket;
+        }
+    }
+}
