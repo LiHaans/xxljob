@@ -1,32 +1,42 @@
 package com.lihaans.minio;
 
-public class TransferStats {
-    private long filesScanned;
-    private long linesRead;
-    private long objectRefsFound;
-    private long transferred;
-    private long missing;
-    private long skippedExisting;
-    private long failed;
+import java.util.concurrent.atomic.AtomicLong;
 
-    public void incFilesScanned() { filesScanned++; }
-    public void incLinesRead() { linesRead++; }
-    public void incObjectRefsFound() { objectRefsFound++; }
-    public void incTransferred() { transferred++; }
-    public void incMissing() { missing++; }
-    public void incSkippedExisting() { skippedExisting++; }
-    public void incFailed() { failed++; }
+public class TransferStats {
+    private final AtomicLong filesScanned = new AtomicLong();
+    private final AtomicLong linesRead = new AtomicLong();
+    private final AtomicLong objectRefsFound = new AtomicLong();
+    private final AtomicLong transferred = new AtomicLong();
+    private final AtomicLong missing = new AtomicLong();
+    private final AtomicLong skippedExisting = new AtomicLong();
+    private final AtomicLong failed = new AtomicLong();
+
+    public void incFilesScanned() { filesScanned.incrementAndGet(); }
+    public void incLinesRead() { linesRead.incrementAndGet(); }
+    public void incObjectRefsFound() { objectRefsFound.incrementAndGet(); }
+    public void incTransferred() { transferred.incrementAndGet(); }
+    public void incMissing() { missing.incrementAndGet(); }
+    public void incSkippedExisting() { skippedExisting.incrementAndGet(); }
+    public void incFailed() { failed.incrementAndGet(); }
+
+    public long getFilesScanned() { return filesScanned.get(); }
+    public long getLinesRead() { return linesRead.get(); }
+    public long getObjectRefsFound() { return objectRefsFound.get(); }
+    public long getTransferred() { return transferred.get(); }
+    public long getMissing() { return missing.get(); }
+    public long getSkippedExisting() { return skippedExisting.get(); }
+    public long getFailed() { return failed.get(); }
 
     @Override
     public String toString() {
         return "TransferStats{" +
-                "filesScanned=" + filesScanned +
-                ", linesRead=" + linesRead +
-                ", objectRefsFound=" + objectRefsFound +
-                ", transferred=" + transferred +
-                ", missing=" + missing +
-                ", skippedExisting=" + skippedExisting +
-                ", failed=" + failed +
+                "filesScanned=" + filesScanned.get() +
+                ", linesRead=" + linesRead.get() +
+                ", objectRefsFound=" + objectRefsFound.get() +
+                ", transferred=" + transferred.get() +
+                ", missing=" + missing.get() +
+                ", skippedExisting=" + skippedExisting.get() +
+                ", failed=" + failed.get() +
                 '}';
     }
 }

@@ -24,7 +24,7 @@ public class MinioTransferService {
         String targetObjectName = buildTargetObjectName(sourceObjectName);
         try {
             if (config.isSkipExistingTarget() && targetExists(targetObjectName)) {
-                return TransferResult.skippedExisting(targetObjectName);
+                return TransferResult.skippedExisting(sourceObjectName, targetObjectName);
             }
 
             InputStream inputStream = sourceClient.getObject(
@@ -44,16 +44,16 @@ public class MinioTransferService {
             } finally {
                 inputStream.close();
             }
-            return TransferResult.transferred(targetObjectName);
+            return TransferResult.transferred(sourceObjectName, targetObjectName);
         } catch (ErrorResponseException e) {
             ErrorResponse errorResponse = e.errorResponse();
             String code = errorResponse != null ? errorResponse.code() : null;
             if ("NoSuchKey".equals(code) || "NoSuchObject".equals(code) || "NoSuchFile".equals(code)) {
-                return TransferResult.missing(sourceObjectName);
+                return TransferResult.missing(sourceObjectName, targetObjectName);
             }
-            return TransferResult.failed(sourceObjectName, e);
+            return TransferResult.failed(sourceObjectName, targetObjectName, e);
         } catch (Exception e) {
-            return TransferResult.failed(sourceObjectName, e);
+            return TransferResult.failed(sourceObjectName, targetObjectName, e);
         }
     }
 
@@ -84,37 +84,43 @@ public class MinioTransferService {
 
     public static class TransferResult {
         private final String status;
-        private final String objectName;
+        private final String sourceObjectName;
+        private final String targetObjectName;
         private final Exception exception;
 
-        private TransferResult(String status, String objectName, Exception exception) {
+        private TransferResult(String status, String sourceObjectName, String targetObjectName, Exception exception) {
             this.status = status;
-            this.objectName = objectName;
+            this.sourceObjectName = sourceObjectName;
+            this.targetObjectName = targetObjectName;
             this.exception = exception;
         }
 
-        public static TransferResult transferred(String objectName) {
-            return new TransferResult("TRANSFERRED", objectName, null);
+        public static TransferResult transferred(String sourceObjectName, String targetObjectName) {
+            return new TransferResult("TRANSFERRED", sourceObjectName, targetObjectName, null);
         }
 
-        public static TransferResult missing(String objectName) {
-            return new TransferResult("MISSING", objectName, null);
+        public static TransferResult missing(String sourceObjectName, String targetObjectName) {
+            return new TransferResult("MISSING", sourceObjectName, targetObjectName, null);
         }
 
-        public static TransferResult skippedExisting(String objectName) {
-            return new TransferResult("SKIPPED_EXISTING", objectName, null);
+        public static TransferResult skippedExisting(String sourceObjectName, String targetObjectName) {
+            return new TransferResult("SKIPPED_EXISTING", sourceObjectName, targetObjectName, null);
         }
 
-        public static TransferResult failed(String objectName, Exception exception) {
-            return new TransferResult("FAILED", objectName, exception);
+        public static TransferResult failed(String sourceObjectName, String targetObjectName, Exception exception) {
+            return new TransferResult("FAILED", sourceObjectName, targetObjectName, exception);
         }
 
         public String getStatus() {
             return status;
         }
 
-        public String getObjectName() {
-            return objectName;
+        public String getSourceObjectName() {
+            return sourceObjectName;
+        }
+
+        public String getTargetObjectName() {
+            return targetObjectName;
         }
 
         public Exception getException() {

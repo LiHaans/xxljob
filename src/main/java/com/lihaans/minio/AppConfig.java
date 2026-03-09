@@ -11,6 +11,9 @@ public class AppConfig {
     private final String objectNameField;
     private final boolean skipExistingTarget;
     private final String targetKeyPrefix;
+    private final int transferThreads;
+    private final int queueCapacity;
+    private final long progressLogIntervalSeconds;
 
     private final StorageConfig source;
     private final StorageConfig target;
@@ -21,6 +24,9 @@ public class AppConfig {
                      String objectNameField,
                      boolean skipExistingTarget,
                      String targetKeyPrefix,
+                     int transferThreads,
+                     int queueCapacity,
+                     long progressLogIntervalSeconds,
                      StorageConfig source,
                      StorageConfig target) {
         this.inputDir = inputDir;
@@ -29,6 +35,9 @@ public class AppConfig {
         this.objectNameField = objectNameField;
         this.skipExistingTarget = skipExistingTarget;
         this.targetKeyPrefix = targetKeyPrefix;
+        this.transferThreads = transferThreads;
+        this.queueCapacity = queueCapacity;
+        this.progressLogIntervalSeconds = progressLogIntervalSeconds;
         this.source = source;
         this.target = target;
     }
@@ -40,12 +49,16 @@ public class AppConfig {
         String objectNameField = p.getProperty("json.objectNameField", "objectName");
         boolean skipExistingTarget = Boolean.parseBoolean(p.getProperty("action.skipExistingTarget", "false"));
         String targetKeyPrefix = p.getProperty("action.targetKeyPrefix", "");
+        int transferThreads = positiveInt(p, "transfer.threads", 32);
+        int queueCapacity = positiveInt(p, "transfer.queueCapacity", 5000);
+        long progressLogIntervalSeconds = positiveLong(p, "progress.logIntervalSeconds", 30L);
 
         StorageConfig source = StorageConfig.from(p, "source");
         StorageConfig target = StorageConfig.from(p, "target");
 
         return new AppConfig(inputDir, inputSuffix, arrayFieldPath, objectNameField,
-                skipExistingTarget, targetKeyPrefix, source, target);
+                skipExistingTarget, targetKeyPrefix, transferThreads, queueCapacity,
+                progressLogIntervalSeconds, source, target);
     }
 
     private static String required(Properties p, String key) {
@@ -54,6 +67,30 @@ public class AppConfig {
             throw new IllegalArgumentException("Missing required config: " + key);
         }
         return v.trim();
+    }
+
+    private static int positiveInt(Properties p, String key, int defaultValue) {
+        String raw = p.getProperty(key);
+        if (raw == null || raw.trim().isEmpty()) {
+            return defaultValue;
+        }
+        int value = Integer.parseInt(raw.trim());
+        if (value <= 0) {
+            throw new IllegalArgumentException("Config must be > 0: " + key);
+        }
+        return value;
+    }
+
+    private static long positiveLong(Properties p, String key, long defaultValue) {
+        String raw = p.getProperty(key);
+        if (raw == null || raw.trim().isEmpty()) {
+            return defaultValue;
+        }
+        long value = Long.parseLong(raw.trim());
+        if (value <= 0L) {
+            throw new IllegalArgumentException("Config must be > 0: " + key);
+        }
+        return value;
     }
 
     public String getInputDir() {
@@ -78,6 +115,18 @@ public class AppConfig {
 
     public String getTargetKeyPrefix() {
         return targetKeyPrefix;
+    }
+
+    public int getTransferThreads() {
+        return transferThreads;
+    }
+
+    public int getQueueCapacity() {
+        return queueCapacity;
+    }
+
+    public long getProgressLogIntervalSeconds() {
+        return progressLogIntervalSeconds;
     }
 
     public StorageConfig getSource() {
