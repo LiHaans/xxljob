@@ -5,11 +5,13 @@ Java 8 tool: scan `*.jsonl.gz`, extract MinIO object names from a configured arr
 ## Features
 
 - Recursively scans a directory for `*.jsonl.gz`
-- Reads one JSON object per line
+- Supports parallel reading of multiple manifest files
+- Supports concurrent MinIO object transfer
 - Extracts object names from a configurable array field path
 - Ignores missing source objects
 - Streams data from source MinIO to target MinIO
 - Supports optional target key prefix
+- Supports configurable retry parameters for transfers
 - Java 8 compatible
 
 ## Build
@@ -27,6 +29,17 @@ java -jar target/minio-transfer-tool-1.0.0.jar --config config.properties
 ## Config example
 
 See `config-example.properties`.
+
+Useful tuning items:
+
+```properties
+reader.threads=4
+transfer.threads=32
+transfer.queueCapacity=5000
+transfer.maxRetries=3
+transfer.retryBackoffMillis=1000
+progress.logIntervalSeconds=30
+```
 
 ### Important field-path rules
 

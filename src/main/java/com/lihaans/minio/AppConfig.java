@@ -14,6 +14,8 @@ public class AppConfig {
     private final int readerThreads;
     private final int transferThreads;
     private final int queueCapacity;
+    private final int transferMaxRetries;
+    private final long retryBackoffMillis;
     private final long progressLogIntervalSeconds;
 
     private final StorageConfig source;
@@ -28,6 +30,8 @@ public class AppConfig {
                      int readerThreads,
                      int transferThreads,
                      int queueCapacity,
+                     int transferMaxRetries,
+                     long retryBackoffMillis,
                      long progressLogIntervalSeconds,
                      StorageConfig source,
                      StorageConfig target) {
@@ -40,6 +44,8 @@ public class AppConfig {
         this.readerThreads = readerThreads;
         this.transferThreads = transferThreads;
         this.queueCapacity = queueCapacity;
+        this.transferMaxRetries = transferMaxRetries;
+        this.retryBackoffMillis = retryBackoffMillis;
         this.progressLogIntervalSeconds = progressLogIntervalSeconds;
         this.source = source;
         this.target = target;
@@ -55,6 +61,8 @@ public class AppConfig {
         int readerThreads = positiveInt(p, "reader.threads", 4);
         int transferThreads = positiveInt(p, "transfer.threads", 32);
         int queueCapacity = positiveInt(p, "transfer.queueCapacity", 5000);
+        int transferMaxRetries = nonNegativeInt(p, "transfer.maxRetries", 3);
+        long retryBackoffMillis = nonNegativeLong(p, "transfer.retryBackoffMillis", 1000L);
         long progressLogIntervalSeconds = positiveLong(p, "progress.logIntervalSeconds", 30L);
 
         StorageConfig source = StorageConfig.from(p, "source");
@@ -62,7 +70,7 @@ public class AppConfig {
 
         return new AppConfig(inputDir, inputSuffix, arrayFieldPath, objectNameField,
                 skipExistingTarget, targetKeyPrefix, readerThreads, transferThreads, queueCapacity,
-                progressLogIntervalSeconds, source, target);
+                transferMaxRetries, retryBackoffMillis, progressLogIntervalSeconds, source, target);
     }
 
     private static String required(Properties p, String key) {
@@ -85,6 +93,18 @@ public class AppConfig {
         return value;
     }
 
+    private static int nonNegativeInt(Properties p, String key, int defaultValue) {
+        String raw = p.getProperty(key);
+        if (raw == null || raw.trim().isEmpty()) {
+            return defaultValue;
+        }
+        int value = Integer.parseInt(raw.trim());
+        if (value < 0) {
+            throw new IllegalArgumentException("Config must be >= 0: " + key);
+        }
+        return value;
+    }
+
     private static long positiveLong(Properties p, String key, long defaultValue) {
         String raw = p.getProperty(key);
         if (raw == null || raw.trim().isEmpty()) {
@@ -93,6 +113,18 @@ public class AppConfig {
         long value = Long.parseLong(raw.trim());
         if (value <= 0L) {
             throw new IllegalArgumentException("Config must be > 0: " + key);
+        }
+        return value;
+    }
+
+    private static long nonNegativeLong(Properties p, String key, long defaultValue) {
+        String raw = p.getProperty(key);
+        if (raw == null || raw.trim().isEmpty()) {
+            return defaultValue;
+        }
+        long value = Long.parseLong(raw.trim());
+        if (value < 0L) {
+            throw new IllegalArgumentException("Config must be >= 0: " + key);
         }
         return value;
     }
@@ -131,6 +163,14 @@ public class AppConfig {
 
     public int getQueueCapacity() {
         return queueCapacity;
+    }
+
+    public int getTransferMaxRetries() {
+        return transferMaxRetries;
+    }
+
+    public long getRetryBackoffMillis() {
+        return retryBackoffMillis;
     }
 
     public long getProgressLogIntervalSeconds() {
