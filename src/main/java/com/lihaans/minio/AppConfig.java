@@ -11,6 +11,7 @@ public class AppConfig {
     private final String objectNameField;
     private final boolean skipExistingTarget;
     private final String targetKeyPrefix;
+    private final int readerThreads;
     private final int transferThreads;
     private final int queueCapacity;
     private final long progressLogIntervalSeconds;
@@ -24,6 +25,7 @@ public class AppConfig {
                      String objectNameField,
                      boolean skipExistingTarget,
                      String targetKeyPrefix,
+                     int readerThreads,
                      int transferThreads,
                      int queueCapacity,
                      long progressLogIntervalSeconds,
@@ -35,6 +37,7 @@ public class AppConfig {
         this.objectNameField = objectNameField;
         this.skipExistingTarget = skipExistingTarget;
         this.targetKeyPrefix = targetKeyPrefix;
+        this.readerThreads = readerThreads;
         this.transferThreads = transferThreads;
         this.queueCapacity = queueCapacity;
         this.progressLogIntervalSeconds = progressLogIntervalSeconds;
@@ -49,6 +52,7 @@ public class AppConfig {
         String objectNameField = p.getProperty("json.objectNameField", "objectName");
         boolean skipExistingTarget = Boolean.parseBoolean(p.getProperty("action.skipExistingTarget", "false"));
         String targetKeyPrefix = p.getProperty("action.targetKeyPrefix", "");
+        int readerThreads = positiveInt(p, "reader.threads", 4);
         int transferThreads = positiveInt(p, "transfer.threads", 32);
         int queueCapacity = positiveInt(p, "transfer.queueCapacity", 5000);
         long progressLogIntervalSeconds = positiveLong(p, "progress.logIntervalSeconds", 30L);
@@ -57,7 +61,7 @@ public class AppConfig {
         StorageConfig target = StorageConfig.from(p, "target");
 
         return new AppConfig(inputDir, inputSuffix, arrayFieldPath, objectNameField,
-                skipExistingTarget, targetKeyPrefix, transferThreads, queueCapacity,
+                skipExistingTarget, targetKeyPrefix, readerThreads, transferThreads, queueCapacity,
                 progressLogIntervalSeconds, source, target);
     }
 
@@ -115,6 +119,10 @@ public class AppConfig {
 
     public String getTargetKeyPrefix() {
         return targetKeyPrefix;
+    }
+
+    public int getReaderThreads() {
+        return readerThreads;
     }
 
     public int getTransferThreads() {

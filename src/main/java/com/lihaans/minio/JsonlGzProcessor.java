@@ -11,9 +11,11 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
@@ -35,43 +37,87 @@ public class JsonlGzProcessor {
 
     public TransferStats process() throws IOException, InterruptedException {
         final TransferStats stats = new TransferStats();
+        final List<Path> files = collectInputFiles();
         final BlockingQueue<String> queue = new ArrayBlockingQueue<String>(config.getQueueCapacity());
-        final ExecutorService executor = Executors.newFixedThreadPool(
+        final ExecutorService transferExecutor = Executors.newFixedThreadPool(
                 config.getTransferThreads(),
                 new NamedThreadFactory("minio-transfer-worker-")
         );
+        final ExecutorService readerExecutor = Executors.newFixedThreadPool(
+                config.getReaderThreads(),
+                new NamedThreadFactory("jsonl-reader-worker-")
+        );
         final Thread progressThread = createProgressThread(stats, queue);
+        final CountDownLatch readerDone = new CountDownLatch(files.size());
 
         progressThread.start();
-        for (int i = 0; i < config.getTransferThreads(); i++) {
-            executor.submit(new TransferWorker(queue, stats));
-        }
+        startTransferWorkers(transferExecutor, queue, stats);
+        startReaderWorkers(readerExecutor, files, queue, stats, readerDone);
 
-        final Path root = Paths.get(config.getInputDir());
         try {
-            Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
-                @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                    if (file.getFileName().toString().endsWith(config.getInputSuffix())) {
-                        stats.incFilesScanned();
-                        processFile(file, stats, queue);
-                    }
-                    return FileVisitResult.CONTINUE;
-                }
-            });
+            readerExecutor.shutdown();
+            while (!readerExecutor.awaitTermination(1, TimeUnit.MINUTES)) {
+                System.out.println("Waiting readers to finish... remaining=" + readerDone.getCount() + ", queueSize=" + queue.size());
+            }
         } finally {
             for (int i = 0; i < config.getTransferThreads(); i++) {
                 putUninterruptibly(queue, POISON_PILL);
             }
-            executor.shutdown();
-            while (!executor.awaitTermination(1, TimeUnit.MINUTES)) {
-                System.out.println("Waiting workers to finish... queueSize=" + queue.size() + ", stats=" + stats);
+            transferExecutor.shutdown();
+            while (!transferExecutor.awaitTermination(1, TimeUnit.MINUTES)) {
+                System.out.println("Waiting transfer workers to finish... queueSize=" + queue.size() + ", stats=" + stats);
             }
             progressThread.interrupt();
             progressThread.join(TimeUnit.SECONDS.toMillis(3));
             logProgress(stats, queue.size(), true);
         }
         return stats;
+    }
+
+    private List<Path> collectInputFiles() throws IOException {
+        final List<Path> files = new ArrayList<Path>();
+        final Path root = Paths.get(config.getInputDir());
+        Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+            @Override
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                if (file.getFileName().toString().endsWith(config.getInputSuffix())) {
+                    files.add(file);
+                }
+                return FileVisitResult.CONTINUE;
+            }
+        });
+        return files;
+    }
+
+    private void startReaderWorkers(ExecutorService readerExecutor,
+                                    List<Path> files,
+                                    final BlockingQueue<String> queue,
+                                    final TransferStats stats,
+                                    final CountDownLatch readerDone) {
+        for (final Path file : files) {
+            readerExecutor.submit(new Runnable() {
+                @Override
+                public void run() {
+                    stats.incFilesScanned();
+                    try {
+                        processFile(file, stats, queue);
+                    } catch (Exception e) {
+                        stats.incFailed();
+                        System.err.println("Failed processing file " + file + ": " + e.getMessage());
+                    } finally {
+                        readerDone.countDown();
+                    }
+                }
+            });
+        }
+    }
+
+    private void startTransferWorkers(ExecutorService transferExecutor,
+                                      final BlockingQueue<String> queue,
+                                      final TransferStats stats) {
+        for (int i = 0; i < config.getTransferThreads(); i++) {
+            transferExecutor.submit(new TransferWorker(queue, stats));
+        }
     }
 
     private void processFile(Path file, TransferStats stats, BlockingQueue<String> queue) throws IOException {
